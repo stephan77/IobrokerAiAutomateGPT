@@ -1,0 +1,72 @@
+{
+  "type": "tabs",
+  "items": {
+    "base": {
+      "type": "tab",
+      "label": "Basis",
+      "items": {
+        "openaiApiKey": {
+          "type": "password",
+          "label": "OpenAI API Key"
+        },
+        "model": {
+          "type": "text",
+          "label": "GPT Modell"
+        },
+        "debug": {
+          "type": "checkbox",
+          "label": "Debug Logging aktivieren"
+        },
+        "dryRun": {
+          "type": "checkbox",
+          "label": "Dry-Run (keine Umsetzung)"
+        }
+      }
+    },
+    "telegram": {
+      "type": "tab",
+      "label": "Telegram",
+      "items": {
+        "telegram.enabled": {
+          "type": "checkbox",
+          "label": "Telegram aktivieren"
+        },
+        "telegram.instance": {
+          "type": "text",
+          "label": "Telegram Instanz"
+        },
+        "telegram.chatId": {
+          "type": "text",
+          "label": "Chat ID"
+        }
+      }
+    },
+    "sources": {
+      "type": "tab",
+      "label": "Datenquellen",
+      "items": {
+        "pvSources": {
+          "type": "table",
+          "label": "PV Quellen",
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "aktiv"
+            },
+            {
+              "attr": "id",
+              "type": "objectId",
+              "title": "Datenpunkt"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

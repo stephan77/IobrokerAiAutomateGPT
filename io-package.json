@@ -1,0 +1,37 @@
+{
+  "common": {
+    "name": "ai-autopilot",
+    "version": "0.5.8",
+    "mode": "daemon",
+    "platform": "Javascript/Node.js",
+    "icon": "ai.png",
+    "enabled": true,
+    "adminUI": {
+      "config": "json"
+    }
+  },
+  "native": {
+    "openaiApiKey": "",
+    "model": "gpt-4o",
+    "mode": "manual",
+    "intervalMin": 60,
+    "dryRun": true,
+    "debug": false,
+    "telegram": {
+      "enabled": false,
+      "instance": "telegram.0",
+      "chatId": ""
+    },
+    "history": {
+      "influx": {
+        "enabled": false
+      },
+      "mysql": {
+        "enabled": false
+      }
+    },
+    "pvSources": [],
+    "heaters": [],
+    "consumers": []
+  }
+}
