@@ -47,7 +47,9 @@
       "hotWater": "",
       "coldWater": "",
       "boilerTemp": "",
-      "circulation": ""
+      "circulation": "",
+      "additionalSources": [],
+      "flowSources": []
     },
     "leakSensors": [],
     "history": {

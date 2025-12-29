@@ -319,6 +319,58 @@
           "label": "Zirkulationspumpe",
           "help": "Status oder Leistung der Zirkulationspumpe."
         },
+        "water.additionalSources": {
+          "type": "table",
+          "label": "Weitere Wasserquellen (optional)",
+          "items": [
+            {
+              "attr": "name",
+              "type": "text",
+              "title": "Name"
+            },
+            {
+              "attr": "objectId",
+              "type": "objectId",
+              "title": "Verbrauch"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
+        "water.flowSources": {
+          "type": "table",
+          "label": "Wasserströmung / Durchfluss (optional)",
+          "items": [
+            {
+              "attr": "name",
+              "type": "text",
+              "title": "Name"
+            },
+            {
+              "attr": "objectId",
+              "type": "objectId",
+              "title": "Durchfluss"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
         "leakSensors": {
           "type": "table",
           "label": "Leckage-Sensoren (optional)",

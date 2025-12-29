@@ -268,7 +268,9 @@ class AiAutopilot extends utils.Adapter {
         hotWater: await this.readNumber(this.config.water.hotWater),
         coldWater: await this.readNumber(this.config.water.coldWater),
         boilerTemp: await this.readNumber(this.config.water.boilerTemp),
-        circulation: await this.readState(this.config.water.circulation)
+        circulation: await this.readState(this.config.water.circulation),
+        additionalSources: await this.readTableNumbers(this.config.water.additionalSources),
+        flowSources: await this.readTableNumbers(this.config.water.flowSources)
       },
       leaks: await this.readTableStates(this.config.leakSensors)
     };
@@ -527,6 +529,12 @@ class AiAutopilot extends utils.Adapter {
     if (liveData.water.hotWater !== null || liveData.water.coldWater !== null) {
       lines.push(`Warmwasser Verbrauch: ${liveData.water.hotWater ?? 'n/a'}`);
       lines.push(`Kaltwasser Verbrauch: ${liveData.water.coldWater ?? 'n/a'}`);
+    }
+    if (liveData.water.additionalSources.length > 0) {
+      lines.push(`Weitere Wasserquellen: ${this.sumTableValues(liveData.water.additionalSources)}`);
+    }
+    if (liveData.water.flowSources.length > 0) {
+      lines.push(`Wasserströmung gesamt: ${this.sumTableValues(liveData.water.flowSources)}`);
     }
 
     if (recommendations.length > 0) {
