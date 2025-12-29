@@ -27,9 +27,11 @@
       "gridPower": "",
       "batterySoc": "",
       "batteryPower": "",
-      "wallbox": ""
+      "wallbox": "",
+      "additionalSources": []
     },
     "pvSources": [],
+    "pvDailySources": [],
     "consumers": [],
     "rooms": [],
     "heaters": [],
@@ -43,6 +45,7 @@
       "total": "",
       "daily": "",
       "hotWater": "",
+      "coldWater": "",
       "boilerTemp": "",
       "circulation": ""
     },

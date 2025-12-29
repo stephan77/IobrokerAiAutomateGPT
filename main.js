@@ -248,9 +248,11 @@ class AiAutopilot extends utils.Adapter {
         gridPower: await this.readNumber(this.config.energy.gridPower),
         batterySoc: await this.readNumber(this.config.energy.batterySoc),
         batteryPower: await this.readNumber(this.config.energy.batteryPower),
-        wallbox: await this.readNumber(this.config.energy.wallbox)
+        wallbox: await this.readNumber(this.config.energy.wallbox),
+        additionalSources: await this.readTableNumbers(this.config.energy.additionalSources)
       },
       pvSources: await this.readTableNumbers(this.config.pvSources),
+      pvDailySources: await this.readTableNumbers(this.config.pvDailySources),
       consumers: await this.readConsumerTable(),
       rooms: await this.readRoomTable(),
       heaters: await this.readTableNumbers(this.config.heaters),
@@ -264,6 +266,7 @@ class AiAutopilot extends utils.Adapter {
         total: await this.readNumber(this.config.water.total),
         daily: await this.readNumber(this.config.water.daily),
         hotWater: await this.readNumber(this.config.water.hotWater),
+        coldWater: await this.readNumber(this.config.water.coldWater),
         boilerTemp: await this.readNumber(this.config.water.boilerTemp),
         circulation: await this.readState(this.config.water.circulation)
       },
@@ -378,8 +381,9 @@ class AiAutopilot extends utils.Adapter {
   generateRecommendations(liveData, aggregates) {
     const recommendations = [];
 
-    const pvTotal = liveData.pvSources.reduce((sum, entry) => sum + (entry.value || 0), 0);
-    const houseConsumption = liveData.energy.houseConsumption || 0;
+    const pvTotal = this.sumTableValues(liveData.pvSources);
+    const houseConsumption =
+      (liveData.energy.houseConsumption || 0) + this.sumTableValues(liveData.energy.additionalSources);
     const gridPower = liveData.energy.gridPower || 0;
 
     if (pvTotal > houseConsumption && gridPower < 0) {
@@ -514,9 +518,16 @@ class AiAutopilot extends utils.Adapter {
     lines.push(`Trigger: ${new Date().toISOString()}`);
     lines.push(`Modus: ${this.config.mode}`);
     lines.push(`Dry-Run: ${this.config.dryRun}`);
-    lines.push(`PV gesamt: ${liveData.pvSources.reduce((sum, entry) => sum + (entry.value || 0), 0)}`);
-    lines.push(`Hausverbrauch: ${liveData.energy.houseConsumption ?? 'n/a'}`);
+    lines.push(`PV gesamt: ${this.sumTableValues(liveData.pvSources)}`);
+    lines.push(`PV Tagesenergie: ${this.sumTableValues(liveData.pvDailySources)}`);
+    lines.push(
+      `Hausverbrauch: ${this.sumTableValues(liveData.energy.additionalSources) + (liveData.energy.houseConsumption ?? 0)}`
+    );
     lines.push(`Batterie SOC: ${liveData.energy.batterySoc ?? 'n/a'}`);
+    if (liveData.water.hotWater !== null || liveData.water.coldWater !== null) {
+      lines.push(`Warmwasser Verbrauch: ${liveData.water.hotWater ?? 'n/a'}`);
+      lines.push(`Kaltwasser Verbrauch: ${liveData.water.coldWater ?? 'n/a'}`);
+    }
 
     if (recommendations.length > 0) {
       lines.push('Empfehlungen:');
@@ -686,6 +697,13 @@ class AiAutopilot extends utils.Adapter {
     }
     const sum = valid.reduce((acc, value) => acc + value, 0);
     return sum / valid.length;
+  }
+
+  sumTableValues(table) {
+    if (!Array.isArray(table)) {
+      return 0;
+    }
+    return table.reduce((sum, entry) => sum + (Number(entry.value) || 0), 0);
   }
 
   logDebug(message, payload) {

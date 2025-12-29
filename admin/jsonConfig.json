@@ -70,19 +70,49 @@
       "items": {
         "energy.houseConsumption": {
           "type": "objectId",
-          "label": "Hausverbrauch (gesamt)"
+          "label": "Hausverbrauch (gesamt)",
+          "help": "Summierter Verbrauch aller Haushaltskreise (W)."
         },
         "energy.gridPower": {
           "type": "objectId",
-          "label": "Netzbezug / Einspeisung"
+          "label": "Netzbezug / Einspeisung",
+          "help": "Positiv = Bezug, negativ = Einspeisung (W)."
         },
         "energy.batterySoc": {
           "type": "objectId",
-          "label": "Batterie SOC"
+          "label": "Batterie SOC",
+          "help": "State of Charge der Batterie (%)."
         },
         "energy.batteryPower": {
           "type": "objectId",
-          "label": "Batterie Lade-/Entladeleistung"
+          "label": "Batterie Lade-/Entladeleistung",
+          "help": "Leistung der Batterie (W). Positiv = Laden, negativ = Entladen."
+        },
+        "energy.additionalSources": {
+          "type": "table",
+          "label": "Weitere Stromquellen",
+          "items": [
+            {
+              "attr": "name",
+              "type": "text",
+              "title": "Name"
+            },
+            {
+              "attr": "objectId",
+              "type": "objectId",
+              "title": "Leistung aktuell"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
         },
         "pvSources": {
           "type": "table",
@@ -107,6 +137,37 @@
               "attr": "unit",
               "type": "text",
               "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
+        "pvDailySources": {
+          "type": "table",
+          "label": "PV-Tagesenergie (optional)",
+          "items": [
+            {
+              "attr": "name",
+              "type": "text",
+              "title": "Name"
+            },
+            {
+              "attr": "objectId",
+              "type": "objectId",
+              "title": "Tagesenergie"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
             }
           ]
         },
@@ -138,7 +199,8 @@
         },
         "energy.wallbox": {
           "type": "objectId",
-          "label": "E-Auto / Wallbox (optional)"
+          "label": "E-Auto / Wallbox (optional)",
+          "help": "Leistung der Wallbox oder des E-Autos (W)."
         }
       }
     },
@@ -229,23 +291,33 @@
       "items": {
         "water.total": {
           "type": "objectId",
-          "label": "Wasser Gesamtverbrauch"
+          "label": "Wasser Gesamtverbrauch",
+          "help": "Gesamtwasserzähler (m³ oder l)."
         },
         "water.daily": {
           "type": "objectId",
-          "label": "Tagesverbrauch Wasser"
+          "label": "Tagesverbrauch Wasser",
+          "help": "Tagesverbrauch gesamt (m³ oder l)."
         },
         "water.hotWater": {
           "type": "objectId",
-          "label": "Warmwasser Verbrauch"
+          "label": "Warmwasser Verbrauch",
+          "help": "Verbrauch Warmwasser, z. B. Warmwasserzähler."
+        },
+        "water.coldWater": {
+          "type": "objectId",
+          "label": "Kaltwasser Verbrauch",
+          "help": "Verbrauch Kaltwasser, z. B. Kaltwasserzähler."
         },
         "water.boilerTemp": {
           "type": "objectId",
-          "label": "Boiler / Warmwasserspeicher Temperatur"
+          "label": "Boiler / Warmwasserspeicher Temperatur",
+          "help": "Temperatur des Warmwasserspeichers (°C)."
         },
         "water.circulation": {
           "type": "objectId",
-          "label": "Zirkulationspumpe"
+          "label": "Zirkulationspumpe",
+          "help": "Status oder Leistung der Zirkulationspumpe."
         },
         "leakSensors": {
           "type": "table",
