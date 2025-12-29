@@ -244,16 +244,29 @@ class AiAutopilot extends utils.Adapter {
     await this.setStateAsync('info.connection', true, true);
 
     try {
+      if (this.config.debug) {
+        this.log.info(`[DEBUG] Config summary: ${JSON.stringify(this.buildConfigSummary())}`);
+      }
       const liveData = await this.collectLiveData();
       const historyData = await this.collectHistoryData();
       const aggregates = this.aggregateData(historyData);
       const recommendations = this.generateRecommendations(liveData, aggregates);
+      const context = await this.buildContext(liveData, aggregates);
       if (this.config.debug) {
-        this.log.info('[DEBUG] Context built');
+        this.log.info(`[DEBUG] Context built: ${JSON.stringify(this.redactContext(context))}`);
       }
+
+      if (context.live.energy.length === 0) {
+        const message = 'No energy sources configured – analysis skipped.';
+        await this.setStateAsync('report.last', message, true);
+        await this.setStateAsync('report.actions', JSON.stringify([], null, 2), true);
+        await this.setStateAsync('info.lastError', '', true);
+        return;
+      }
+
       let gptInsights = null;
       if (this.openaiClient) {
-        gptInsights = await this.callOpenAI(liveData, aggregates, recommendations);
+        gptInsights = await this.callOpenAI(context);
       } else {
         gptInsights = 'OpenAI not configured - GPT analysis skipped.';
       }
@@ -324,16 +337,163 @@ class AiAutopilot extends utils.Adapter {
     return { influx: influxData, mysql: mysqlData };
   }
 
+  async buildContext(liveData, aggregates) {
+    const context = {
+      timestamp: new Date().toISOString(),
+      mode: this.config.mode,
+      dryRun: this.config.dryRun,
+      live: {
+        energy: [],
+        pv: [],
+        water: [],
+        temperatures: [],
+        heaters: []
+      },
+      history: {
+        influx: {},
+        mysql: {}
+      },
+      semantics: {}
+    };
+
+    for (const src of this.config.energySources || []) {
+      if (!src || !src.enabled) {
+        continue;
+      }
+      const value = await this.getForeignStateValue(src.id);
+      context.live.energy.push({
+        value: value ?? null,
+        unit: src.unit || '',
+        role: src.role || '',
+        description: src.description || ''
+      });
+    }
+
+    for (const src of this.config.pvSources || []) {
+      if (!src || !src.objectId) {
+        continue;
+      }
+      const value = await this.getForeignStateValue(src.objectId);
+      context.live.pv.push({
+        value: value ?? null,
+        unit: src.unit || '',
+        role: 'currentPower',
+        description: this.buildPvDescription(src)
+      });
+      if (src.dailyObjectId) {
+        const dailyValue = await this.getForeignStateValue(src.dailyObjectId);
+        context.live.pv.push({
+          value: dailyValue ?? null,
+          unit: src.unit || '',
+          role: 'dailyEnergy',
+          description: this.buildPvDescription(src)
+        });
+      }
+    }
+
+    for (const src of this.config.pvDailySources || []) {
+      if (!src || !src.objectId) {
+        continue;
+      }
+      const value = await this.getForeignStateValue(src.objectId);
+      context.live.pv.push({
+        value: value ?? null,
+        unit: src.unit || '',
+        role: 'dailyEnergy',
+        description: src.description || src.name || ''
+      });
+    }
+
+    for (const src of this.config.waterSources || []) {
+      if (!src || !src.enabled) {
+        continue;
+      }
+      const value = await this.getForeignStateValue(src.id);
+      context.live.water.push({
+        value: value ?? null,
+        unit: src.unit || '',
+        role: src.kind || '',
+        description: src.description || ''
+      });
+    }
+
+    for (const room of this.config.rooms || []) {
+      if (!room) {
+        continue;
+      }
+      if (room.temperature) {
+        const value = await this.getForeignStateValue(room.temperature);
+        context.live.temperatures.push({
+          value: value ?? null,
+          unit: '°C',
+          role: 'roomTemperature',
+          description: room.name || ''
+        });
+      }
+      if (room.target) {
+        const value = await this.getForeignStateValue(room.target);
+        context.live.temperatures.push({
+          value: value ?? null,
+          unit: '°C',
+          role: 'targetTemperature',
+          description: room.name || ''
+        });
+      }
+      if (room.heatingPower) {
+        const value = await this.getForeignStateValue(room.heatingPower);
+        context.live.temperatures.push({
+          value: value ?? null,
+          unit: '',
+          role: 'roomHeatingPower',
+          description: room.name || ''
+        });
+      }
+    }
+
+    if (this.config.temperature?.outside) {
+      const value = await this.getForeignStateValue(this.config.temperature.outside);
+      context.live.temperatures.push({
+        value: value ?? null,
+        unit: '°C',
+        role: 'outsideTemperature',
+        description: 'Außentemperatur'
+      });
+    }
+
+    for (const heater of this.config.heaters || []) {
+      if (!heater || !heater.objectId) {
+        continue;
+      }
+      const value = await this.getForeignStateValue(heater.objectId);
+      context.live.heaters.push({
+        value: value ?? null,
+        unit: heater.unit || '',
+        role: heater.type || '',
+        description: heater.type || ''
+      });
+    }
+
+    context.history.influx = this.config.history?.influx?.enabled ? aggregates.influx : {};
+    context.history.mysql = this.config.history?.mysql?.enabled ? aggregates.mysql : {};
+
+    return context;
+  }
+
   async collectHistoryFromConfig(historyConfig, baseUnitMs) {
     if (!historyConfig.enabled || !historyConfig.instance) {
       return [];
     }
 
     const now = Date.now();
-    const period = historyConfig.periodHours || historyConfig.periodDays || 0;
+    const period =
+      historyConfig.timeframeHours ||
+      historyConfig.timeframeDays ||
+      historyConfig.periodHours ||
+      historyConfig.periodDays ||
+      0;
     const start = now - period * baseUnitMs;
     const end = now;
-    const resolutionMin = Number(historyConfig.resolutionMin) || 15;
+    const resolutionMin = Number(historyConfig.resolutionMinutes ?? historyConfig.resolutionMin) || 15;
     const options = {
       start,
       end,
@@ -342,19 +502,79 @@ class AiAutopilot extends utils.Adapter {
     };
 
     const results = [];
-    for (const datapoint of historyConfig.datapoints || []) {
-      if (!datapoint.objectId) {
+    const datapoints =
+      Array.isArray(historyConfig.dataPoints) && historyConfig.dataPoints.length > 0
+        ? historyConfig.dataPoints
+        : historyConfig.datapoints || [];
+    for (const datapoint of datapoints) {
+      if (datapoint.enabled === false) {
+        continue;
+      }
+      const id = datapoint.id || datapoint.objectId;
+      if (!id) {
         continue;
       }
       try {
-        const data = await this.requestHistory(historyConfig.instance, datapoint.objectId, options);
-        results.push({ ...datapoint, values: data || [] });
+        const data = await this.requestHistory(historyConfig.instance, id, options);
+        results.push({ ...datapoint, id, values: data || [] });
       } catch (error) {
-        this.handleError(`Historische Daten konnten nicht geladen werden: ${datapoint.objectId}`, error, true);
+        this.handleError(`Historische Daten konnten nicht geladen werden: ${id}`, error, true);
       }
     }
 
     return results;
+  }
+
+  buildPvDescription(src) {
+    const parts = [src.name, src.orientation, src.description].filter(Boolean);
+    return parts.join(' | ');
+  }
+
+  buildConfigSummary() {
+    return {
+      mode: this.config.mode,
+      dryRun: this.config.dryRun,
+      energySources: (this.config.energySources || []).length,
+      pvSources: (this.config.pvSources || []).length,
+      pvDailySources: (this.config.pvDailySources || []).length,
+      waterSources: (this.config.waterSources || []).length,
+      rooms: (this.config.rooms || []).length,
+      heaters: (this.config.heaters || []).length,
+      history: {
+        influx: Boolean(this.config.history?.influx?.enabled),
+        mysql: Boolean(this.config.history?.mysql?.enabled)
+      }
+    };
+  }
+
+  redactContext(context) {
+    const clone = JSON.parse(JSON.stringify(context));
+    const sections = ['energy', 'pv', 'water', 'temperatures', 'heaters'];
+    for (const section of sections) {
+      for (const entry of clone.live[section] || []) {
+        if (Object.prototype.hasOwnProperty.call(entry, 'value')) {
+          entry.value = '[redacted]';
+        }
+      }
+    }
+    clone.history = {
+      influx: '[redacted]',
+      mysql: '[redacted]'
+    };
+    return clone;
+  }
+
+  async getForeignStateValue(id) {
+    if (!id) {
+      return null;
+    }
+    try {
+      const state = await this.getForeignStateAsync(id);
+      return state ? state.val : null;
+    } catch (error) {
+      this.handleError(`Konnte State nicht lesen: ${id}`, error, true);
+      return null;
+    }
   }
 
   requestHistory(instance, id, options) {
@@ -496,11 +716,9 @@ class AiAutopilot extends utils.Adapter {
     return series && series.aggregate ? series.aggregate[field] : null;
   }
 
-  async callOpenAI(liveData, aggregates, recommendations) {
+  async callOpenAI(context) {
     const payload = {
-      liveData,
-      aggregates,
-      recommendations,
+      ...context,
       policy: await this.getStateAsync('memory.policy')
     };
 

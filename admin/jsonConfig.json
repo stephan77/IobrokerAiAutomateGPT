@@ -88,6 +88,55 @@
           "label": "Batterie Lade-/Entladeleistung",
           "help": "Leistung der Batterie (W). Positiv = Laden, negativ = Entladen."
         },
+        "energySources": {
+          "type": "table",
+          "label": "Stromquellen",
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "aktiv"
+            },
+            {
+              "attr": "id",
+              "type": "objectId",
+              "title": "Datenpunkt"
+            },
+            {
+              "attr": "role",
+              "type": "select",
+              "title": "Rolle",
+              "options": [
+                {
+                  "label": "houseConsumption",
+                  "value": "houseConsumption"
+                },
+                {
+                  "label": "gridImport",
+                  "value": "gridImport"
+                },
+                {
+                  "label": "gridExport",
+                  "value": "gridExport"
+                },
+                {
+                  "label": "subMeter",
+                  "value": "subMeter"
+                }
+              ]
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
         "energy.additionalSources": {
           "type": "table",
           "label": "Weitere Stromquellen",
@@ -101,6 +150,11 @@
               "attr": "objectId",
               "type": "objectId",
               "title": "Leistung aktuell"
+            },
+            {
+              "attr": "dailyObjectId",
+              "type": "objectId",
+              "title": "Tagesenergie"
             },
             {
               "attr": "unit",
@@ -319,6 +373,55 @@
           "label": "Zirkulationspumpe",
           "help": "Status oder Leistung der Zirkulationspumpe."
         },
+        "waterSources": {
+          "type": "table",
+          "label": "Wasserquellen (Kalt / Warm / Durchfluss)",
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "aktiv"
+            },
+            {
+              "attr": "id",
+              "type": "objectId",
+              "title": "Datenpunkt"
+            },
+            {
+              "attr": "kind",
+              "type": "select",
+              "title": "Typ",
+              "options": [
+                {
+                  "label": "cold",
+                  "value": "cold"
+                },
+                {
+                  "label": "hot",
+                  "value": "hot"
+                },
+                {
+                  "label": "flow",
+                  "value": "flow"
+                },
+                {
+                  "label": "leak",
+                  "value": "leak"
+                }
+              ]
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
         "water.additionalSources": {
           "type": "table",
           "label": "Weitere Wasserquellen (optional)",
@@ -411,6 +514,16 @@
           "label": "Auflösung (Minuten)",
           "min": 1
         },
+        "history.influx.timeframeHours": {
+          "type": "number",
+          "label": "Zeitraum (Stunden, neu)",
+          "min": 1
+        },
+        "history.influx.resolutionMinutes": {
+          "type": "number",
+          "label": "Auflösung (Minuten, neu)",
+          "min": 1
+        },
         "history.influx.datapoints": {
           "type": "table",
           "label": "InfluxDB Datenpunkte",
@@ -432,6 +545,37 @@
             }
           ]
         },
+        "history.influx.dataPoints": {
+          "type": "table",
+          "label": "InfluxDB Datenpunkte (neu)",
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "aktiv"
+            },
+            {
+              "attr": "id",
+              "type": "objectId",
+              "title": "Datenpunkt"
+            },
+            {
+              "attr": "role",
+              "type": "text",
+              "title": "Rolle"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
+            }
+          ]
+        },
         "history.mysql.enabled": {
           "type": "checkbox",
           "label": "MySQL aktiv"
@@ -448,6 +592,16 @@
         "history.mysql.resolutionMin": {
           "type": "number",
           "label": "Auflösung (Minuten)",
+          "min": 1
+        },
+        "history.mysql.timeframeDays": {
+          "type": "number",
+          "label": "Zeitraum (Tage, neu)",
+          "min": 1
+        },
+        "history.mysql.resolutionMinutes": {
+          "type": "number",
+          "label": "Auflösung (Minuten, neu)",
           "min": 1
         },
         "history.mysql.datapoints": {
@@ -468,6 +622,37 @@
               "attr": "unit",
               "type": "text",
               "title": "Einheit"
+            }
+          ]
+        },
+        "history.mysql.dataPoints": {
+          "type": "table",
+          "label": "MySQL Datenpunkte (neu)",
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "aktiv"
+            },
+            {
+              "attr": "id",
+              "type": "objectId",
+              "title": "Datenpunkt"
+            },
+            {
+              "attr": "role",
+              "type": "text",
+              "title": "Rolle"
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Einheit"
+            },
+            {
+              "attr": "description",
+              "type": "text",
+              "title": "Beschreibung"
             }
           ]
         }

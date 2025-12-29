@@ -30,6 +30,7 @@
       "wallbox": "",
       "additionalSources": []
     },
+    "energySources": [],
     "pvSources": [],
     "pvDailySources": [],
     "consumers": [],
@@ -51,6 +52,7 @@
       "additionalSources": [],
       "flowSources": []
     },
+    "waterSources": [],
     "leakSensors": [],
     "history": {
       "influx": {
@@ -58,14 +60,20 @@
         "instance": "influxdb.0",
         "periodHours": 24,
         "resolutionMin": 15,
-        "datapoints": []
+        "datapoints": [],
+        "timeframeHours": 24,
+        "resolutionMinutes": 15,
+        "dataPoints": []
       },
       "mysql": {
         "enabled": false,
         "instance": "mysql.0",
         "periodDays": 7,
         "resolutionMin": 60,
-        "datapoints": []
+        "datapoints": [],
+        "timeframeDays": 7,
+        "resolutionMinutes": 60,
+        "dataPoints": []
       }
     }
   }
