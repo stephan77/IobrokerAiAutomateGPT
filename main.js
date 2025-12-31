@@ -290,7 +290,8 @@ class AiAutopilot extends utils.Adapter {
       const energySummary = this.buildEnergySummary(
         context.live.energy,
         liveData.pvSources,
-        liveData.pvDailySources
+        liveData.pvDailySources,
+        context.live.water
       );
       context.summary = energySummary;
       this.lastContextSummary = this.buildFeedbackContext(context, energySummary);
@@ -363,6 +364,7 @@ class AiAutopilot extends utils.Adapter {
       timestamp: new Date().toISOString(),
       mode: this.config.mode,
       dryRun: this.config.dryRun,
+      summary: this.buildEmptySummary(),
       live: {
         energy: [],
         pv: [],
@@ -662,7 +664,7 @@ class AiAutopilot extends utils.Adapter {
   generateRecommendations(liveData, aggregates, energySummary) {
     const recommendations = [];
 
-    const pvTotal = energySummary.pvTotal || 0;
+    const pvTotal = energySummary.pvPower || 0;
     const gridPower = energySummary.gridPower || 0;
     const houseConsumption = energySummary.houseConsumption || 0;
     const batterySoc = energySummary.batterySoc;
@@ -738,16 +740,13 @@ class AiAutopilot extends utils.Adapter {
   }
 
   async callOpenAI(context) {
-    const livePayload = { ...context.live };
-    delete livePayload.energy;
     const payload = {
       ...context,
-      live: livePayload,
       policy: await this.getStateAsync('memory.policy'),
       feedback: this.feedbackHistory
     };
 
-    const prompt = `Du bist ein Haus-Autopilot. Analysiere die Daten und gib Empfehlungen mit Begründung. Nenne fehlende Daten explizit.\n\n${JSON.stringify(payload, null, 2)}`;
+    const prompt = `Du bist ein Haus-Autopilot. Analysiere die Daten und gib Empfehlungen mit Begründung. Nenne fehlende Daten explizit. Nutze fehlende Daten ausschließlich anhand von context.summary; leite nichts als fehlend aus den Rohlisten in context.live ab.\n\n${JSON.stringify(payload, null, 2)}`;
 
     try {
       if (this.config.debug) {
@@ -800,8 +799,8 @@ class AiAutopilot extends utils.Adapter {
     lines.push(`Trigger: ${new Date().toISOString()}`);
     lines.push(`Modus: ${this.config.mode}`);
     lines.push(`Dry-Run: ${this.config.dryRun}`);
-    lines.push(`PV gesamt: ${energySummary.pvTotal}`);
-    lines.push(`PV Tagesenergie: ${energySummary.pvDaily}`);
+    lines.push(`PV gesamt: ${energySummary.pvPower}`);
+    lines.push(`PV Tagesenergie: ${energySummary.pvDailyEnergy}`);
     lines.push(`Hausverbrauch: ${energySummary.houseConsumption}`);
     lines.push(`Batterie SOC: ${energySummary.batterySoc ?? 'n/a'}`);
     if (liveData.water.hotWater !== null || liveData.water.coldWater !== null) {
@@ -1049,28 +1048,53 @@ class AiAutopilot extends utils.Adapter {
     return table.reduce((sum, entry) => sum + (Number(entry.value) || 0), 0);
   }
 
-  buildEnergySummary(energyEntries, pvSources, pvDailySources) {
-    const sumRole = (role) => {
-      const values = (energyEntries || [])
-        .filter((entry) => entry && entry.role === role)
+  buildEmptySummary() {
+    return {
+      houseConsumption: null,
+      gridPower: null,
+      batterySoc: null,
+      batteryPower: null,
+      pvPower: null,
+      pvDailyEnergy: null,
+      waterConsumption: null,
+      wallboxPower: null
+    };
+  }
+
+  buildEnergySummary(energyEntries, pvSources, pvDailySources, waterEntries) {
+    const sumValues = (entries) => {
+      const values = (entries || [])
         .map((entry) => Number(entry.value))
         .filter((value) => Number.isFinite(value));
       if (values.length === 0) {
-        return 0;
+        return null;
       }
       return values.reduce((sum, value) => sum + value, 0);
     };
 
+    const sumRole = (role) =>
+      sumValues((energyEntries || []).filter((entry) => entry && entry.role === role));
+
+    const firstRole = (role) => {
+      const entry = (energyEntries || []).find(
+        (item) => item && item.role === role && Number.isFinite(Number(item.value))
+      );
+      return entry ? Number(entry.value) : null;
+    };
+
+    const sumWaterRoles = (roles) =>
+      sumValues((waterEntries || []).filter((entry) => entry && roles.includes(entry.role)));
+
     return {
+      ...this.buildEmptySummary(),
       houseConsumption: sumRole('houseConsumption'),
-      pvTotal: this.sumTableValues(pvSources),
-      pvDaily: this.sumTableValues(pvDailySources),
       gridPower: sumRole('gridPower'),
-      gridImport: sumRole('gridImport'),
-      gridExport: sumRole('gridExport'),
-      batterySoc: sumRole('batterySoc'),
+      batterySoc: firstRole('batterySoc'),
       batteryPower: sumRole('batteryPower'),
-      wallbox: sumRole('wallbox')
+      pvPower: sumValues(pvSources),
+      pvDailyEnergy: sumValues(pvDailySources),
+      waterConsumption: sumWaterRoles(['waterTotal', 'waterFlow']),
+      wallboxPower: sumRole('wallbox')
     };
   }
 
@@ -1119,11 +1143,14 @@ class AiAutopilot extends utils.Adapter {
       mode: context.mode,
       dryRun: context.dryRun,
       summary: {
-        pvTotal: energySummary.pvTotal,
-        pvDaily: energySummary.pvDaily,
         houseConsumption: energySummary.houseConsumption,
         batterySoc: energySummary.batterySoc,
-        gridPower: energySummary.gridPower
+        batteryPower: energySummary.batteryPower,
+        gridPower: energySummary.gridPower,
+        pvPower: energySummary.pvPower,
+        pvDailyEnergy: energySummary.pvDailyEnergy,
+        waterConsumption: energySummary.waterConsumption,
+        wallboxPower: energySummary.wallboxPower
       }
     };
   }
