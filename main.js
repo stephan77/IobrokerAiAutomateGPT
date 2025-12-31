@@ -523,7 +523,7 @@ Object.assign(
   schedulerMethods()
 );
 
-if (module.parent) {
+if (require.main !== module) {
   module.exports = (options) => new AiAutopilot(options);
 } else {
   new AiAutopilot();
