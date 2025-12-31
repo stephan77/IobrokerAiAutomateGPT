@@ -22,6 +22,15 @@
       "instance": "telegram.0",
       "chatId": ""
     },
+    "dailyReportEnabled": false,
+    "dailyReportTime": "19:00",
+    "dailyReportDays": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
     "dailyReport": {
       "enabled": false,
       "time": "08:00",
