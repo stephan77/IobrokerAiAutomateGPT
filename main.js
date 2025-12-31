@@ -280,6 +280,20 @@ class AiAutopilot extends utils.Adapter {
       const historyData = await this.collectHistoryData();
       const aggregates = this.aggregateData(historyData);
       const context = await this.buildContext(liveData, aggregates);
+      if (this.config.debug) {
+        this.log.info(
+          `[DEBUG] History points loaded: ${JSON.stringify({
+            influx: historyData.influx?.pointsLoaded || 0,
+            mysql: historyData.mysql?.pointsLoaded || 0
+          })}`
+        );
+        this.log.info(
+          `[DEBUG] History baselines: ${JSON.stringify(context.history.baselines, null, 2)}`
+        );
+        this.log.info(
+          `[DEBUG] History deviations: ${JSON.stringify(context.history.deviations, null, 2)}`
+        );
+      }
       if (context.live.energy.length === 0) {
         const message = 'No energy sources configured – analysis skipped.';
         await this.setStateAsync('report.last', message, true);
@@ -379,8 +393,16 @@ class AiAutopilot extends utils.Adapter {
         heaters: []
       },
       history: {
-        influx: {},
-        mysql: {}
+        energy: {},
+        water: {},
+        temperature: {},
+        baselines: {
+          houseConsumptionAvg: null,
+          houseConsumptionNightAvg: null,
+          waterDailyAvg: null,
+          temperatureOutsideAvg: null
+        },
+        deviations: []
       },
       semantics: {}
     };
@@ -586,8 +608,87 @@ class AiAutopilot extends utils.Adapter {
       });
     }
 
-    context.history.influx = this.config.history?.influx?.enabled ? aggregates.influx : {};
-    context.history.mysql = this.config.history?.mysql?.enabled ? aggregates.mysql : {};
+    const historySeries = [...(aggregates.influx || []), ...(aggregates.mysql || [])];
+    const historyById = new Map();
+    for (const series of historySeries) {
+      if (!series || !series.id || !series.aggregate) {
+        continue;
+      }
+      const category = this.getHistoryCategory(series.role);
+      context.history[category][series.id] = {
+        avg: series.aggregate.avg,
+        min: series.aggregate.min,
+        max: series.aggregate.max,
+        last: series.aggregate.last,
+        nightAvg: series.aggregate.nightAvg,
+        dayAvg: series.aggregate.dayAvg
+      };
+      historyById.set(series.id, series.aggregate);
+    }
+
+    const houseConsumptionAggregate = historyById.get(this.config.energy?.houseConsumption) || null;
+    const waterBaselineId =
+      this.config.water?.daily || this.config.water?.total || this.config.water?.flow || null;
+    const waterAggregate = waterBaselineId ? historyById.get(waterBaselineId) : null;
+    const outsideTempAggregate = historyById.get(this.config.temperature?.outside) || null;
+
+    context.history.baselines.houseConsumptionAvg = houseConsumptionAggregate?.avg ?? null;
+    context.history.baselines.houseConsumptionNightAvg = houseConsumptionAggregate?.nightAvg ?? null;
+    context.history.baselines.waterDailyAvg = waterAggregate?.avg ?? null;
+    context.history.baselines.temperatureOutsideAvg = outsideTempAggregate?.avg ?? null;
+
+    const deviations = [];
+    const nowHour = new Date().getHours();
+    const isNight = nowHour < DAY_START_HOUR || nowHour >= NIGHT_START_HOUR;
+    const liveHouseConsumption = this.sumLiveRole(context.live.energy, 'houseConsumption');
+    if (
+      Number.isFinite(liveHouseConsumption) &&
+      Number.isFinite(context.history.baselines.houseConsumptionNightAvg) &&
+      liveHouseConsumption > 1.5 * context.history.baselines.houseConsumptionNightAvg
+    ) {
+      deviations.push({
+        category: 'energy',
+        type: 'peak',
+        description: 'House consumption significantly above historical night baseline.',
+        severity: 'warn'
+      });
+    }
+
+    const liveWaterUsage = this.sumLiveRoles(context.live.water, [
+      'waterFlow',
+      'waterTotal',
+      'waterConsumption'
+    ]);
+    if (
+      isNight &&
+      Number.isFinite(liveWaterUsage) &&
+      waterAggregate?.nightAvg &&
+      liveWaterUsage > waterAggregate.nightAvg
+    ) {
+      deviations.push({
+        category: 'water',
+        type: 'night',
+        description: 'Night water usage above historical baseline.',
+        severity: 'warn'
+      });
+    }
+
+    const batterySocAggregate = historyById.get(this.config.energy?.batterySoc) || null;
+    const liveBatterySoc = this.sumLiveRole(context.live.energy, 'batterySoc');
+    if (
+      Number.isFinite(liveBatterySoc) &&
+      Number.isFinite(batterySocAggregate?.avg) &&
+      liveBatterySoc < batterySocAggregate.avg - 10
+    ) {
+      deviations.push({
+        category: 'energy',
+        type: 'anomaly',
+        description: 'Battery SOC below historical average.',
+        severity: 'info'
+      });
+    }
+
+    context.history.deviations = deviations;
 
     if (this.config.debug) {
       this.log.info(`[DEBUG] LIVE ENERGY CONTEXT: ${JSON.stringify(context.live.energy, null, 2)}`);
@@ -599,8 +700,8 @@ class AiAutopilot extends utils.Adapter {
   }
 
   async collectHistoryFromConfig(historyConfig, baseUnitMs) {
-    if (!historyConfig.enabled || !historyConfig.instance) {
-      return [];
+    if (!historyConfig || !historyConfig.enabled || !historyConfig.instance) {
+      return { series: [], pointsLoaded: 0 };
     }
 
     const now = Date.now();
@@ -610,6 +711,9 @@ class AiAutopilot extends utils.Adapter {
       historyConfig.periodHours ||
       historyConfig.periodDays ||
       0;
+    if (!period) {
+      return { series: [], pointsLoaded: 0 };
+    }
     const start = now - period * baseUnitMs;
     const end = now;
     const resolutionMin = Number(historyConfig.resolutionMinutes ?? historyConfig.resolutionMin) || 15;
@@ -621,6 +725,7 @@ class AiAutopilot extends utils.Adapter {
     };
 
     const results = [];
+    let pointsLoaded = 0;
     const datapoints =
       Array.isArray(historyConfig.dataPoints) && historyConfig.dataPoints.length > 0
         ? historyConfig.dataPoints
@@ -633,15 +738,23 @@ class AiAutopilot extends utils.Adapter {
       if (!id) {
         continue;
       }
+      let values = [];
       try {
         const data = await this.requestHistory(historyConfig.instance, id, options);
-        results.push({ ...datapoint, id, values: data || [] });
+        values = this.normalizeHistoryValues(data);
       } catch (error) {
         this.handleError(`Historische Daten konnten nicht geladen werden: ${id}`, error, true);
+        values = [];
       }
+      pointsLoaded += values.length;
+      results.push({
+        ...datapoint,
+        id,
+        values
+      });
     }
 
-    return results;
+    return { series: results, pointsLoaded };
   }
 
   buildPvDescription(src) {
@@ -677,8 +790,11 @@ class AiAutopilot extends utils.Adapter {
       }
     }
     clone.history = {
-      influx: '[redacted]',
-      mysql: '[redacted]'
+      energy: '[redacted]',
+      water: '[redacted]',
+      temperature: '[redacted]',
+      baselines: '[redacted]',
+      deviations: '[redacted]'
     };
     return clone;
   }
@@ -711,18 +827,38 @@ class AiAutopilot extends utils.Adapter {
   aggregateData(historyData) {
     const aggregateSeries = (series) => {
       if (!series || series.length === 0) {
-        return null;
+        return {
+          avg: null,
+          min: null,
+          max: null,
+          last: null,
+          dayAvg: null,
+          nightAvg: null
+        };
       }
 
-      const values = series.map((entry) => Number(entry.val)).filter((value) => Number.isFinite(value));
+      const values = series.map((entry) => Number(entry.value)).filter((value) => Number.isFinite(value));
       if (values.length === 0) {
-        return null;
+        return {
+          avg: null,
+          min: null,
+          max: null,
+          last: null,
+          dayAvg: null,
+          nightAvg: null
+        };
       }
 
       const sum = values.reduce((acc, value) => acc + value, 0);
       const min = Math.min(...values);
       const max = Math.max(...values);
       const avg = sum / values.length;
+      const last = series.reduce((latest, entry) => {
+        if (!latest || entry.ts > latest.ts) {
+          return entry;
+        }
+        return latest;
+      }, null);
 
       const dayValues = [];
       const nightValues = [];
@@ -730,24 +866,24 @@ class AiAutopilot extends utils.Adapter {
         const timestamp = new Date(entry.ts);
         const hour = timestamp.getHours();
         if (hour >= DAY_START_HOUR && hour < NIGHT_START_HOUR) {
-          dayValues.push(Number(entry.val));
+          dayValues.push(Number(entry.value));
         } else {
-          nightValues.push(Number(entry.val));
+          nightValues.push(Number(entry.value));
         }
       }
 
       const dayAvg = this.averageNumbers(dayValues);
       const nightAvg = this.averageNumbers(nightValues);
 
-      return { avg, min, max, dayAvg, nightAvg };
+      return { avg, min, max, last: last ? Number(last.value) : null, dayAvg, nightAvg };
     };
 
     const aggregated = {
-      influx: historyData.influx.map((series) => ({
+      influx: (historyData.influx?.series || []).map((series) => ({
         ...series,
         aggregate: aggregateSeries(series.values)
       })),
-      mysql: historyData.mysql.map((series) => ({
+      mysql: (historyData.mysql?.series || []).map((series) => ({
         ...series,
         aggregate: aggregateSeries(series.values)
       }))
@@ -1234,6 +1370,56 @@ class AiAutopilot extends utils.Adapter {
     } else {
       this.log.info(`[DEBUG] ${message}`);
     }
+  }
+
+  normalizeHistoryValues(data) {
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    const values = [];
+    for (const entry of data) {
+      const ts = Number(entry.ts ?? entry.timestamp ?? entry.time);
+      const value = Number(entry.val ?? entry.value);
+      if (!Number.isFinite(ts) || !Number.isFinite(value)) {
+        continue;
+      }
+      values.push({ ts, value });
+    }
+    values.sort((a, b) => a.ts - b.ts);
+    return values;
+  }
+
+  getHistoryCategory(role) {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized.includes('water')) {
+      return 'water';
+    }
+    if (normalized.includes('temp') || normalized.includes('temperature') || normalized.includes('outside')) {
+      return 'temperature';
+    }
+    return 'energy';
+  }
+
+  sumLiveRole(entries, role) {
+    const values = (entries || [])
+      .filter((entry) => entry && entry.role === role)
+      .map((entry) => Number(entry.value))
+      .filter((value) => Number.isFinite(value));
+    if (values.length === 0) {
+      return null;
+    }
+    return values.reduce((sum, value) => sum + value, 0);
+  }
+
+  sumLiveRoles(entries, roles) {
+    const values = (entries || [])
+      .filter((entry) => entry && roles.includes(entry.role))
+      .map((entry) => Number(entry.value))
+      .filter((value) => Number.isFinite(value));
+    if (values.length === 0) {
+      return null;
+    }
+    return values.reduce((sum, value) => sum + value, 0);
   }
 
   trimLog(text) {
