@@ -321,19 +321,19 @@ class AiAutopilot extends utils.Adapter {
       }
 
       let gptInsights = null;
-      if (this.openaiClient) {
-        gptInsights = await this.callOpenAI(context);
-      } else {
+      if (!this.openaiClient) {
         gptInsights = 'OpenAI not configured - GPT analysis skipped.';
       }
       const reportText = this.buildReportText(liveData, aggregates, recommendations, gptInsights, energySummary);
-      const actions = this.buildActions(recommendations, gptInsights);
+      const actions = this.buildDeviationActions(context);
+      const refinedActions = await this.refineActionsWithGpt(context.history.deviations, actions);
+      const finalActions = this.dedupeActions(refinedActions);
 
       await this.setStateAsync('report.last', reportText, true);
-      await this.setStateAsync('report.actions', JSON.stringify(actions, null, 2), true);
+      await this.setStateAsync('report.actions', JSON.stringify(finalActions, null, 2), true);
 
-      if (actions.length > 0 && !this.config.dryRun) {
-        await this.requestApproval(actions, reportText);
+      if (finalActions.length > 0 && !this.config.dryRun) {
+        await this.requestApproval(finalActions, reportText);
       }
 
       await this.setStateAsync('info.lastError', '', true);
@@ -971,18 +971,34 @@ class AiAutopilot extends utils.Adapter {
     return series && series.aggregate ? series.aggregate[field] : null;
   }
 
-  async callOpenAI(context) {
+  async refineActionsWithGpt(deviations, actions) {
+    if (!this.openaiClient || actions.length === 0) {
+      return actions;
+    }
+
     const payload = {
-      ...context,
-      policy: await this.getStateAsync('memory.policy'),
-      feedback: this.feedbackHistory
+      deviations,
+      actions: actions.map((action) => ({
+        id: action.id,
+        category: action.category,
+        title: action.title,
+        description: action.description,
+        reason: action.reason,
+        severity: action.severity,
+        deviationRef: action.deviationRef
+      }))
     };
 
-    const prompt = `Du bist ein Haus-Autopilot. Analysiere die Daten und gib Empfehlungen mit Begründung. Nenne fehlende Daten explizit. Nutze fehlende Daten ausschließlich anhand von context.summary; leite nichts als fehlend aus den Rohlisten in context.live ab.\n\n${JSON.stringify(payload, null, 2)}`;
+    const prompt =
+      'Du bist ein Assistent für einen Haus-Autopiloten. Verfeinere ausschließlich die Wortwahl ' +
+      'der Aktionsfelder title, description und reason. Erfinde keine neuen Aktionen, ändere keine IDs, ' +
+      'Kategorien, Severity, Status oder Referenzen. Gib ausschließlich ein JSON-Array zurück, in dem ' +
+      'jede Zeile ein Objekt mit id, title, description, reason enthält.\n\n' +
+      JSON.stringify(payload, null, 2);
 
     try {
       if (this.config.debug) {
-        this.log.info('[DEBUG] GPT request sent');
+        this.log.info('[DEBUG] GPT action refinement request sent');
       }
       const response = await this.openaiClient.responses.create({
         model: this.config.model || 'gpt-4o',
@@ -1001,13 +1017,41 @@ class AiAutopilot extends utils.Adapter {
 
       const outputText = response.output_text || this.extractOutputText(response);
       if (this.config.debug) {
-        this.log.info(`[DEBUG] GPT request: ${this.trimLog(prompt)}`);
-        this.log.info(`[DEBUG] GPT response received: ${this.trimLog(outputText || '')}`);
+        this.log.info(`[DEBUG] GPT refinement request: ${this.trimLog(prompt)}`);
+        this.log.info(`[DEBUG] GPT refinement response: ${this.trimLog(outputText || '')}`);
       }
-      return outputText || null;
+
+      const refinements = this.parseJsonArray(outputText);
+      if (!Array.isArray(refinements)) {
+        return actions;
+      }
+
+      const refinementMap = new Map();
+      for (const entry of refinements) {
+        if (!entry || typeof entry.id !== 'string') {
+          continue;
+        }
+        refinementMap.set(entry.id, entry);
+      }
+
+      const updatedActions = actions.map((action) => {
+        const refinement = refinementMap.get(action.id);
+        if (!refinement) {
+          return action;
+        }
+        return {
+          ...action,
+          title: typeof refinement.title === 'string' ? refinement.title : action.title,
+          description: typeof refinement.description === 'string' ? refinement.description : action.description,
+          reason: typeof refinement.reason === 'string' ? refinement.reason : action.reason
+        };
+      });
+
+      this.logDebug('GPT action refinement applied', updatedActions);
+      return updatedActions;
     } catch (error) {
-      this.handleError('OpenAI Anfrage fehlgeschlagen', error, true);
-      return null;
+      this.handleError('OpenAI Aktionstext-Verfeinerung fehlgeschlagen', error, true);
+      return actions;
     }
   }
 
@@ -1024,6 +1068,22 @@ class AiAutopilot extends utils.Adapter {
       }
     }
     return texts.join('\n');
+  }
+
+  parseJsonArray(text) {
+    if (!text || typeof text !== 'string') {
+      return null;
+    }
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) {
+      return null;
+    }
+    try {
+      return JSON.parse(match[0]);
+    } catch (error) {
+      this.handleError('GPT JSON konnte nicht geparst werden', error, true);
+      return null;
+    }
   }
 
   buildReportText(liveData, aggregates, recommendations, gptInsights, energySummary) {
@@ -1063,15 +1123,166 @@ class AiAutopilot extends utils.Adapter {
     return lines.join('\n');
   }
 
-  buildActions(recommendations) {
+  buildDeviationActions(context) {
+    const deviations = Array.isArray(context.history?.deviations) ? context.history.deviations : [];
     const baseId = Date.now();
-    return recommendations.map((rec, index) => ({
-      id: `${baseId}-${index + 1}`,
-      category: rec.category,
-      description: rec.description,
-      priority: rec.priority,
-      status: 'proposed'
-    }));
+    let index = 1;
+    const actions = [];
+
+    if (this.config.debug) {
+      this.log.info(`[DEBUG] Deviations for action mapping: ${JSON.stringify(deviations, null, 2)}`);
+    }
+
+    for (const deviation of deviations) {
+      const mapping = this.mapDeviationToAction(deviation, context);
+      if (!mapping) {
+        continue;
+      }
+      const deviationRef =
+        deviation.id || deviation.description || `${deviation.category || 'unknown'}:${deviation.type || 'unknown'}`;
+      const action = {
+        id: `${baseId}-${index++}`,
+        category: mapping.category,
+        title: mapping.title,
+        description: mapping.description,
+        reason: mapping.reason,
+        severity: this.mapDeviationSeverity(deviation.severity),
+        status: 'proposed',
+        source: 'deviation',
+        deviationRef
+      };
+
+      if (this.isDuplicateAction(action, actions)) {
+        this.logDebug('Duplicate action skipped', action);
+        continue;
+      }
+
+      actions.push(action);
+    }
+
+    this.logDebug('Deviation actions derived', actions);
+    return actions;
+  }
+
+  mapDeviationToAction(deviation, context) {
+    const type = deviation?.type;
+    const category = deviation?.category;
+    const deviationDescription = deviation?.description || 'Abweichung erkannt.';
+    const batterySoc = context?.summary?.batterySoc;
+    const outsideTemp = this.getOutsideTemperature(context?.live?.temperature || []);
+    const insideTemp = this.getAverageRoomTemperature(context?.live?.temperature || []);
+
+    if (category === 'energy' && type === 'night') {
+      const action = {
+        category: 'energy',
+        title: 'Standby-Verbrauch reduzieren',
+        description: 'Erhöhter Nachtverbrauch erkannt. Standby-Verbraucher prüfen und reduzieren.',
+        reason: deviationDescription
+      };
+      this.logDebug('Deviation mapping rule fired: energy-night', { deviation, action });
+      return action;
+    }
+
+    if (category === 'energy' && type === 'peak') {
+      const action = {
+        category: 'energy',
+        title: 'Lastspitzen vermeiden',
+        description: 'Hohe Lastspitze erkannt. Flexible Verbraucher zeitlich verschieben.',
+        reason: deviationDescription
+      };
+      this.logDebug('Deviation mapping rule fired: energy-peak', { deviation, action });
+      return action;
+    }
+
+    if (type === 'anomaly' && Number.isFinite(batterySoc) && batterySoc < 20) {
+      const action = {
+        category: 'battery',
+        title: 'Batterie schützen',
+        description: 'Batterie-SOC unter 20 %. Entladung reduzieren oder Reserve schützen.',
+        reason: deviationDescription
+      };
+      this.logDebug('Deviation mapping rule fired: battery-low-soc', { deviation, action });
+      return action;
+    }
+
+    if (category === 'water' && type === 'night') {
+      const action = {
+        category: 'water',
+        title: 'Mögliche Wasserleckage prüfen',
+        description: 'Nächtlicher Wasserverbrauch über Baseline. Leitungen und Geräte prüfen.',
+        reason: deviationDescription
+      };
+      this.logDebug('Deviation mapping rule fired: water-night', { deviation, action });
+      return action;
+    }
+
+    if (
+      category === 'heating' &&
+      type === 'anomaly' &&
+      Number.isFinite(outsideTemp) &&
+      Number.isFinite(insideTemp) &&
+      outsideTemp > insideTemp
+    ) {
+      const action = {
+        category: 'heating',
+        title: 'Heizungsregelung prüfen',
+        description: 'Außentemperatur höher als Innentemperatur. Heizungsregelung prüfen.',
+        reason: deviationDescription
+      };
+      this.logDebug('Deviation mapping rule fired: heating-inefficiency', { deviation, action });
+      return action;
+    }
+
+    const fallbackCategory = this.normalizeActionCategory(category);
+    const action = {
+      category: fallbackCategory,
+      title: 'Abweichung prüfen',
+      description: 'Eine Abweichung wurde erkannt. Bitte Ursache prüfen.',
+      reason: deviationDescription
+    };
+    this.logDebug('Deviation mapping rule fired: fallback', { deviation, action });
+    return action;
+  }
+
+  mapDeviationSeverity(severity) {
+    switch (severity) {
+      case 'critical':
+        return 'high';
+      case 'warn':
+        return 'medium';
+      case 'info':
+      default:
+        return 'info';
+    }
+  }
+
+  normalizeActionCategory(category) {
+    const allowed = new Set(['energy', 'heating', 'water', 'pv', 'battery', 'comfort']);
+    if (allowed.has(category)) {
+      return category;
+    }
+    return 'comfort';
+  }
+
+  isDuplicateAction(action, existing) {
+    return existing.some(
+      (entry) =>
+        entry.category === action.category &&
+        entry.title === action.title &&
+        entry.deviationRef === action.deviationRef
+    );
+  }
+
+  dedupeActions(actions) {
+    const unique = [];
+    for (const action of actions || []) {
+      if (this.isDuplicateAction(action, unique)) {
+        this.logDebug('Duplicate action removed after refinement', action);
+        continue;
+      }
+      unique.push(action);
+    }
+    return unique;
   }
 
   async requestApproval(actions, reportText) {
@@ -1117,7 +1328,7 @@ class AiAutopilot extends utils.Adapter {
     const lines = ['Freigabe erforderlich. Bitte Antwort senden: JA, NEIN oder ÄNDERN:<Text>', ''];
     lines.push('Aktionen:');
     for (const action of actions) {
-      lines.push(`- [${action.priority}] ${action.description}`);
+      lines.push(`- [${action.severity}] ${action.title}: ${action.description}`);
     }
     lines.push('', 'Report:', reportText);
     return lines.join('\n');
@@ -1411,6 +1622,23 @@ class AiAutopilot extends utils.Adapter {
     return values.reduce((sum, value) => sum + value, 0);
   }
 
+  getOutsideTemperature(entries) {
+    const outsideEntry = (entries || []).find((entry) => entry && entry.role === 'outside');
+    const value = outsideEntry?.temperature;
+    return Number.isFinite(value) ? value : null;
+  }
+
+  getAverageRoomTemperature(entries) {
+    const temps = (entries || [])
+      .filter((entry) => entry && entry.role === 'room' && Number.isFinite(entry.temperature))
+      .map((entry) => entry.temperature);
+    if (temps.length === 0) {
+      return null;
+    }
+    const total = temps.reduce((sum, value) => sum + value, 0);
+    return total / temps.length;
+  }
+
   sumLiveRoles(entries, roles) {
     const values = (entries || [])
       .filter((entry) => entry && roles.includes(entry.role))
@@ -1476,8 +1704,10 @@ class AiAutopilot extends utils.Adapter {
       context: this.lastContextSummary,
       action: {
         category: action.category,
-        priority: action.priority,
-        description: action.description
+        severity: action.severity,
+        title: action.title,
+        description: action.description,
+        reason: action.reason
       },
       timestamp: new Date().toISOString()
     };
