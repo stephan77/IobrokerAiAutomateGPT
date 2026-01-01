@@ -17,17 +17,26 @@
         "houseConsumption": {
           "type": "objectId",
           "label": "House consumption (W)",
-          "types": ["number"]
+          "filter": {
+            "type": "number",
+            "role": ["value.power", "value.energy"]
+          }
         },
         "pvPower": {
           "type": "objectId",
           "label": "PV power (W)",
-          "types": ["number"]
+          "filter": {
+            "type": "number",
+            "role": ["value.power", "value.energy"]
+          }
         },
         "gridPower": {
           "type": "objectId",
           "label": "Grid power (W)",
-          "types": ["number"]
+          "filter": {
+            "type": "number",
+            "role": ["value.power", "value.energy"]
+          }
         }
       }
     }
