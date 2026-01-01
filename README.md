@@ -114,3 +114,57 @@ Alles ist **erweiterbar**, eigene Datenpunkte können jederzeit ergänzt werden.
 ## 🧱 Architektur & Code-Struktur
 
 Der Adapter ist **konsequent modular aufgebaut**:
+
+├── main.js
+├── io-package.json
+├── package.json
+├── admin/
+│   └── jsonConfig.json
+└── lib/
+├── state.js        # Alle States & State-Handling
+├── config.js       # Konfigurations-Normalisierung & Validierung
+├── discovery.js    # Automatische Datenpunkt-Erkennung
+├── liveContext.js  # Live-Daten-Erfassung
+├── history.js      # InfluxDB / SQL Zugriff
+├── stats.js        # Statistiken & Kennzahlen
+├── rules.js        # Abweichungen & Regeln
+├── actions.js     # Aktions-Lifecycle
+├── report.js       # Berichte (Text / Markdown)
+├── telegram.js    # Telegram-Anbindung
+├── gpt.js          # OpenAI / GPT (optional)
+└── scheduler.js    # Zeitsteuerung
+
+🧩 Wichtige States
+
+Steuerung & Status
+	•	ai-autopilot.0.control.run
+	•	ai-autopilot.0.info.connection
+	•	ai-autopilot.0.info.lastError
+
+Reports
+	•	ai-autopilot.0.report.last
+	•	ai-autopilot.0.report.stats
+	•	ai-autopilot.0.report.actions
+	•	ai-autopilot.0.report.actionHistory
+
+Meta
+	•	ai-autopilot.0.meta.running
+	•	ai-autopilot.0.meta.lastRun
+	•	ai-autopilot.0.meta.lastDailyReportTs
+
+Lernen / Historie
+	•	ai-autopilot.0.memory.feedback
+	•	ai-autopilot.0.memory.learning
+	•	ai-autopilot.0.memory.history
+	•	ai-autopilot.0.memory.policy
+
+📜 Lizenz
+
+MIT License
+
+Ideen, Feedback und Pull Requests sind willkommen.
+Bitte:
+	•	modular bleiben
+	•	sauber kommentieren
+	•	ioBroker-Standards einhalten
+
