@@ -34,14 +34,7 @@
     "dailyReport": {
       "enabled": false,
       "time": "19:00",
-      "days": [1,2,3,4,5],
-      "timezone": "",
-      "include": {
-        "summary": true,
-        "actions": true,
-        "learning": true,
-        "deviations": true
-      }
+      "days": [1,2,3,4,5]
     },
 
     "energy": {
