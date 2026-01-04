@@ -14,7 +14,7 @@
         },
         "dataPointsHint": {
           "type": "staticText",
-          "text": "Eine Zeile = ein Datenpunkt. Nur aktivierte Datenpunkte werden an GPT gesendet."
+          "text": "Zuerst Object ID auswählen. Eine Zeile = ein Datenpunkt. Nur aktivierte Datenpunkte werden an GPT gesendet."
         },
         "dataPoints": {
           "type": "table",
@@ -23,19 +23,19 @@
           "deleteRow": true,
           "items": [
             {
+              "name": "objectId",
+              "type": "objectId",
+              "label": "Object ID (Pflichtfeld)",
+              "tooltip": "Zuerst Object ID auswählen. Wähle die vollständige Object ID des Datenpunkts, der ausgewertet werden soll.",
+              "required": true,
+              "width": "260px"
+            },
+            {
               "name": "enabled",
               "type": "checkbox",
               "label": "An GPT senden",
               "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
               "width": "120px"
-            },
-            {
-              "name": "objectId",
-              "type": "objectId",
-              "label": "ioBroker-Objekt (Object ID)",
-              "tooltip": "Wähle die vollständige Object ID des Datenpunkts, der ausgewertet werden soll.",
-              "required": true,
-              "width": "260px"
             },
             {
               "name": "role",
