@@ -19,7 +19,16 @@
         "dataPoints": {
           "type": "table",
           "label": "Datenpunkte",
+          "addRow": true,
+          "deleteRow": true,
           "items": [
+            {
+              "name": "enabled",
+              "type": "checkbox",
+              "label": "An GPT senden",
+              "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
+              "width": "120px"
+            },
             {
               "name": "objectId",
               "type": "objectId",
@@ -65,13 +74,6 @@
               "tooltip": "Einheit des Werts, z. B. W, kWh, °C.",
               "placeholder": "W",
               "width": "90px"
-            },
-            {
-              "name": "enabled",
-              "type": "checkbox",
-              "label": "An GPT senden",
-              "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
-              "width": "120px"
             }
           ]
         }
