@@ -38,7 +38,7 @@ Ziel ist ein **intelligenter Analyse- und Entscheidungs-Adapter**, der:
 
 ---
 
-### ⚙️ Flexible Zuordnung im Admin (JSON-Config)
+### ⚙️ Flexible Zuordnung im Admin (Custom React UI)
 
 Für **jeden Datenpunkt** kann festgelegt werden:
 
@@ -119,7 +119,9 @@ Der Adapter ist **konsequent modular aufgebaut**:
 ├── io-package.json
 ├── package.json
 ├── admin/
-│   └── jsonConfig.json
+│   ├── index.html
+│   ├── assets/
+│   └── src/
 └── lib/
 ├── state.js        # Alle States & State-Handling
 ├── config.js       # Konfigurations-Normalisierung & Validierung
@@ -158,6 +160,14 @@ Lernen / Historie
 	•	ai-autopilot.0.memory.history
 	•	ai-autopilot.0.memory.policy
 
+## 🔧 Admin Build
+
+```
+npm i
+npm run build-admin
+iobroker upload ai-autopilot
+```
+
 📜 Lizenz
 
 MIT License
@@ -167,4 +177,3 @@ Bitte:
 	•	modular bleiben
 	•	sauber kommentieren
 	•	ioBroker-Standards einhalten
-
