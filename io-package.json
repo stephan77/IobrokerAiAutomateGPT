@@ -39,8 +39,8 @@
     },
     "telegram": {
       "enabled": false,
-      "token": "",
-      "chatId": ""
+      "instance": "",
+      "recipients": []
     },
     "gpt": {
       "enabled": false,
