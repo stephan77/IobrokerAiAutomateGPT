@@ -15,55 +15,66 @@
         "dataPoints": {
           "type": "table",
           "label": "Datenpunkte",
-          "items": {
-            "objectId": {
+          "items": [
+            {
+              "name": "objectId",
               "type": "objectId",
               "label": "Object ID",
               "required": true
             },
-            "dailyObjectId": {
+            {
+              "name": "dailyObjectId",
               "type": "objectId",
               "label": "Daily Object ID",
               "required": false
             },
-            "category": {
+            {
+              "name": "category",
               "type": "text",
               "label": "Kategorie",
               "placeholder": "energy.houseConsumption"
             },
-            "description": {
+            {
+              "name": "description",
               "type": "text",
               "label": "Beschreibung"
             },
-            "unit": {
+            {
+              "name": "unit",
               "type": "text",
               "label": "Einheit"
             },
-            "enabled": {
+            {
+              "name": "enabled",
               "type": "checkbox",
               "label": "Aktiv"
             },
-            "includeInBalance": {
+            {
+              "name": "includeInBalance",
               "type": "checkbox",
               "label": "In Bilanz"
             },
-            "isTotalMeter": {
+            {
+              "name": "isTotalMeter",
               "type": "checkbox",
               "label": "Totalzähler"
             },
-            "isSource": {
+            {
+              "name": "isSource",
               "type": "checkbox",
               "label": "Quelle"
             },
-            "isConsumer": {
+            {
+              "name": "isConsumer",
               "type": "checkbox",
               "label": "Verbraucher"
             },
-            "orientation": {
+            {
+              "name": "orientation",
               "type": "text",
               "label": "Ausrichtung"
             }
-          }
+          ]
         }
       }
     },
