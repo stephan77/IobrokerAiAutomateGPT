@@ -7,7 +7,7 @@
       "label": "Allgemein",
       "items": {
         "runDiscovery": {
-          "type": "button",
+          "type": "sendTo",
           "label": "Discovery starten",
           "command": "runDiscovery",
           "tooltip": "Scannt Datenpunkte und speichert Kandidaten in native.discoveryCandidates"
