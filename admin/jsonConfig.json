@@ -23,10 +23,16 @@
               "required": true
             },
             {
-              "name": "dailyObjectId",
-              "type": "objectId",
-              "label": "Daily Object ID",
-              "required": false
+              "name": "role",
+              "type": "select",
+              "label": "Rolle",
+              "options": [
+                { "label": "consumer", "value": "consumer" },
+                { "label": "producer", "value": "producer" },
+                { "label": "battery", "value": "battery" },
+                { "label": "grid", "value": "grid" },
+                { "label": "other", "value": "other" }
+              ]
             },
             {
               "name": "category",
@@ -37,7 +43,8 @@
             {
               "name": "description",
               "type": "text",
-              "label": "Beschreibung"
+              "label": "Beschreibung",
+              "placeholder": "Freie Beschreibung"
             },
             {
               "name": "unit",
@@ -48,31 +55,6 @@
               "name": "enabled",
               "type": "checkbox",
               "label": "Aktiv"
-            },
-            {
-              "name": "includeInBalance",
-              "type": "checkbox",
-              "label": "In Bilanz"
-            },
-            {
-              "name": "isTotalMeter",
-              "type": "checkbox",
-              "label": "Totalzähler"
-            },
-            {
-              "name": "isSource",
-              "type": "checkbox",
-              "label": "Quelle"
-            },
-            {
-              "name": "isConsumer",
-              "type": "checkbox",
-              "label": "Verbraucher"
-            },
-            {
-              "name": "orientation",
-              "type": "text",
-              "label": "Ausrichtung"
             }
           ]
         }
