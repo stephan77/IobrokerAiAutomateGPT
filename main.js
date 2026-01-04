@@ -43,6 +43,16 @@ function startAdapter(options) {
 
   let analysisRunning = false;
 
+  const normalizeObjectId = (value) => {
+    if (typeof value === "string") {
+      return value.trim();
+    }
+    if (value && typeof value === "object") {
+      return String(value.id || value._id || value.value || "").trim();
+    }
+    return "";
+  };
+
   /**
    * Führt die Analyse sicher und mit Sperre aus.
    */
@@ -151,6 +161,51 @@ function startAdapter(options) {
 
     if (msg.command === "telegramAction") {
       await telegram.handleAction(msg);
+    }
+
+    if (msg.command === "addDataPoint") {
+      try {
+        const payload = msg.message || {};
+        const objectId = normalizeObjectId(payload.objectId);
+        if (!objectId) {
+          adapter.sendTo(msg.from, msg.command, { ok: false, error: "Object ID fehlt." }, msg.callback);
+          return;
+        }
+
+        const existing = Array.isArray(adapter.config.dataPoints) ? adapter.config.dataPoints : [];
+        if (existing.some((entry) => normalizeObjectId(entry?.objectId) === objectId)) {
+          adapter.sendTo(
+            msg.from,
+            msg.command,
+            { ok: false, error: "Object ID ist bereits vorhanden." },
+            msg.callback
+          );
+          return;
+        }
+
+        const normalizeEnabled = (value) =>
+          value === true || value === "true" || value === 1 || value === "1";
+
+        const dataPoint = {
+          objectId,
+          role: payload.role || "other",
+          description: payload.description || "",
+          unit: payload.unit || "",
+          enabled: normalizeEnabled(payload.enabled),
+        };
+
+        const updated = [...existing, dataPoint];
+        await adapter.extendForeignObjectAsync(adapter.namespace, {
+          native: {
+            dataPoints: updated,
+          },
+        });
+        adapter.config.dataPoints = updated;
+        adapter.sendTo(msg.from, msg.command, { ok: true, count: updated.length }, msg.callback);
+      } catch (error) {
+        adapter.log.warn(`Datenpunkt hinzufügen fehlgeschlagen: ${error.message}`);
+        adapter.sendTo(msg.from, msg.command, { ok: false, error: error.message }, msg.callback);
+      }
     }
   });
 
