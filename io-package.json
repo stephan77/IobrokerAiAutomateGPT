@@ -26,6 +26,7 @@
     "type": "energy",
     "enabled": true,
     "compact": true,
+    "messagebox": true,
     "connectionType": "local",
     "dataSource": "poll",
     "dependencies": []
