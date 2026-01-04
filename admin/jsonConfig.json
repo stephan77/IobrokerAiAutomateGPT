@@ -16,26 +16,18 @@
           "type": "staticText",
           "text": "Zuerst Object ID auswählen. Eine Zeile = ein Datenpunkt. Nur aktivierte Datenpunkte werden an GPT gesendet."
         },
-        "dataPoints": {
-          "type": "table",
-          "label": "Datenpunkte",
-          "addRow": true,
-          "deleteRow": true,
-          "items": [
+        "addDataPoint": {
+          "type": "sendTo",
+          "label": "Datenpunkt hinzufügen",
+          "command": "addDataPoint",
+          "tooltip": "Öffnet ein Formular und legt einen vollständigen Datenpunkt an.",
+          "inputs": [
             {
               "name": "objectId",
               "type": "objectId",
               "label": "Object ID (Pflichtfeld)",
-              "tooltip": "Zuerst Object ID auswählen. Wähle die vollständige Object ID des Datenpunkts, der ausgewertet werden soll.",
-              "required": true,
-              "width": "260px"
-            },
-            {
-              "name": "enabled",
-              "type": "checkbox",
-              "label": "An GPT senden",
-              "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
-              "width": "120px"
+              "tooltip": "Wähle die vollständige Object ID des Datenpunkts, der ausgewertet werden soll.",
+              "required": true
             },
             {
               "name": "role",
@@ -49,33 +41,35 @@
                 { "label": "grid", "value": "grid" },
                 { "label": "other", "value": "other" }
               ],
-              "width": "160px"
-            },
-            {
-              "name": "category",
-              "type": "text",
-              "label": "Kategorie (Pfad/Tag)",
-              "tooltip": "Freie Gruppierung, z. B. für Auswertung/Filtern in GPT.",
-              "placeholder": "energy.houseConsumption",
-              "width": "190px"
+              "default": "other"
             },
             {
               "name": "description",
               "type": "text",
               "label": "Wofür ist dieser Datenpunkt?",
               "tooltip": "Kurzbeschreibung, die GPT den Zweck des Datenpunkts erklärt.",
-              "placeholder": "z. B. Gesamtverbrauch Haus in Watt",
-              "width": "240px"
+              "placeholder": "z. B. Gesamtverbrauch Haus in Watt"
             },
             {
               "name": "unit",
               "type": "text",
               "label": "Einheit",
               "tooltip": "Einheit des Werts, z. B. W, kWh, °C.",
-              "placeholder": "W",
-              "width": "90px"
+              "placeholder": "W"
+            },
+            {
+              "name": "enabled",
+              "type": "checkbox",
+              "label": "An GPT senden",
+              "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
+              "default": true
             }
           ]
+        },
+        "dataPoints": {
+          "type": "jsonEditor",
+          "label": "Datenpunkte (nur Anzeige)",
+          "readOnly": true
         }
       }
     },
