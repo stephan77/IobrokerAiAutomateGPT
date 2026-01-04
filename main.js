@@ -89,6 +89,17 @@ function startAdapter(options) {
 
   adapter.on("ready", async () => {
     try {
+      const sanitized = config.sanitizeConfig();
+      if (sanitized.changed) {
+        adapter.log.info("Bereinige ungültige oder doppelte Datenpunkte in der Konfiguration.");
+        await adapter.extendForeignObjectAsync(adapter.namespace, {
+          native: {
+            dataPoints: sanitized.dataPoints,
+          },
+        });
+        adapter.config.dataPoints = sanitized.dataPoints;
+      }
+
       await state.ensureStates();
       await state.setInfo("connection", true);
       await state.setInfo("lastError", "");
