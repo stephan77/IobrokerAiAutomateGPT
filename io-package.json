@@ -19,7 +19,7 @@
     "main": "main.js",
     "icon": "ai-autopilot.png",
     "adminUI": {
-    "config": "json"
+      "config": "html"
     },
     "platform": "Javascript/Node.js",
     "mode": "daemon",
