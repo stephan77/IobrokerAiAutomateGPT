@@ -12,6 +12,10 @@
           "command": "runDiscovery",
           "tooltip": "Scannt Datenpunkte und speichert Kandidaten in native.discoveryCandidates"
         },
+        "dataPointsHint": {
+          "type": "staticText",
+          "text": "Eine Zeile = ein Datenpunkt. Nur aktivierte Datenpunkte werden an GPT gesendet."
+        },
         "dataPoints": {
           "type": "table",
           "label": "Datenpunkte",
@@ -19,42 +23,55 @@
             {
               "name": "objectId",
               "type": "objectId",
-              "label": "Object ID",
-              "required": true
+              "label": "ioBroker-Objekt (Object ID)",
+              "tooltip": "Wähle die vollständige Object ID des Datenpunkts, der ausgewertet werden soll.",
+              "required": true,
+              "width": "260px"
             },
             {
               "name": "role",
               "type": "select",
-              "label": "Rolle",
+              "label": "Rolle im Energiemodell",
+              "tooltip": "Ordne den Datenpunkt einer Rolle zu (z. B. Verbrauch, Erzeugung, Batterie).",
               "options": [
                 { "label": "consumer", "value": "consumer" },
                 { "label": "producer", "value": "producer" },
                 { "label": "battery", "value": "battery" },
                 { "label": "grid", "value": "grid" },
                 { "label": "other", "value": "other" }
-              ]
+              ],
+              "width": "160px"
             },
             {
               "name": "category",
               "type": "text",
-              "label": "Kategorie",
-              "placeholder": "energy.houseConsumption"
+              "label": "Kategorie (Pfad/Tag)",
+              "tooltip": "Freie Gruppierung, z. B. für Auswertung/Filtern in GPT.",
+              "placeholder": "energy.houseConsumption",
+              "width": "190px"
             },
             {
               "name": "description",
               "type": "text",
-              "label": "Beschreibung",
-              "placeholder": "Freie Beschreibung"
+              "label": "Wofür ist dieser Datenpunkt?",
+              "tooltip": "Kurzbeschreibung, die GPT den Zweck des Datenpunkts erklärt.",
+              "placeholder": "z. B. Gesamtverbrauch Haus in Watt",
+              "width": "240px"
             },
             {
               "name": "unit",
               "type": "text",
-              "label": "Einheit"
+              "label": "Einheit",
+              "tooltip": "Einheit des Werts, z. B. W, kWh, °C.",
+              "placeholder": "W",
+              "width": "90px"
             },
             {
               "name": "enabled",
               "type": "checkbox",
-              "label": "Aktiv"
+              "label": "An GPT senden",
+              "tooltip": "Nur aktivierte Datenpunkte werden an GPT übergeben.",
+              "width": "120px"
             }
           ]
         }
