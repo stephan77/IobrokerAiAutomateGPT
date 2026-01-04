@@ -105,13 +105,21 @@
           "type": "checkbox",
           "label": "Telegram aktivieren"
         },
-        "telegram.token": {
+        "telegram.instance": {
           "type": "text",
-          "label": "Bot Token"
+          "label": "Telegram-Instanz",
+          "placeholder": "telegram.0"
         },
-        "telegram.chatId": {
-          "type": "text",
-          "label": "Chat ID"
+        "telegram.recipients": {
+          "type": "table",
+          "label": "Empfänger",
+          "items": [
+            {
+              "name": "id",
+              "type": "text",
+              "label": "Benutzername oder Chat-ID"
+            }
+          ]
         }
       }
     },
