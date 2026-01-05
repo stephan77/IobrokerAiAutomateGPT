@@ -1,0 +1,155 @@
+{
+  "i18n": true,
+  "type": "tabs",
+  "items": {
+    "general": {
+      "type": "panel",
+      "label": "Allgemein",
+      "items": {
+        "runDiscovery": {
+          "type": "sendTo",
+          "label": "Discovery starten",
+          "command": "runDiscovery",
+          "tooltip": "Scannt Datenpunkte und speichert Kandidaten in native.discoveryCandidates"
+        },
+        "dataPointsHint": {
+          "type": "staticText",
+          "text": "Eine Zeile = ein Datenpunkt. Nur aktivierte Datenpunkte werden an GPT gesendet."
+        },
+        "dataPoints": {
+          "type": "table",
+          "label": "Datenpunkte",
+          "items": [
+            {
+              "name": "objectId",
+              "type": "objectId",
+              "label": "ioBroker Object ID",
+              "required": true
+            },
+            {
+              "name": "role",
+              "type": "select",
+              "label": "Rolle",
+              "options": [
+                { "label": "consumer", "value": "consumer" },
+                { "label": "producer", "value": "producer" },
+                { "label": "battery", "value": "battery" },
+                { "label": "grid", "value": "grid" },
+                { "label": "other", "value": "other" }
+              ]
+            },
+            {
+              "name": "category",
+              "type": "text",
+              "label": "Kategorie",
+              "placeholder": "energy.houseConsumption"
+            },
+            {
+              "name": "description",
+              "type": "text",
+              "label": "Beschreibung"
+            },
+            {
+              "name": "unit",
+              "type": "text",
+              "label": "Einheit"
+            },
+            {
+              "name": "enabled",
+              "type": "checkbox",
+              "label": "An GPT senden"
+            }
+          ]
+        }
+      }
+    },
+    "history": {
+      "type": "panel",
+      "label": "Historie",
+      "items": {
+        "history.mode": {
+          "type": "select",
+          "label": "Modus",
+          "options": [
+            { "label": "Auto", "value": "auto" },
+            { "label": "Instanz", "value": "instance" }
+          ]
+        },
+        "history.instance": {
+          "type": "text",
+          "label": "History-Instanz",
+          "placeholder": "influxdb.0"
+        }
+      }
+    },
+    "telegram": {
+      "type": "panel",
+      "label": "Telegram",
+      "items": {
+        "telegram.enabled": {
+          "type": "checkbox",
+          "label": "Telegram aktivieren"
+        },
+        "telegram.instance": {
+          "type": "text",
+          "label": "Telegram-Instanz",
+          "placeholder": "telegram.0"
+        },
+        "telegram.recipients": {
+          "type": "table",
+          "label": "Empfänger",
+          "items": [
+            {
+              "name": "id",
+              "type": "text",
+              "label": "Benutzername oder Chat-ID"
+            }
+          ]
+        }
+      }
+    },
+    "gpt": {
+      "type": "panel",
+      "label": "GPT",
+      "items": {
+        "gpt.enabled": {
+          "type": "checkbox",
+          "label": "GPT aktivieren"
+        },
+        "gpt.openaiApiKey": {
+          "type": "password",
+          "label": "OpenAI API Key"
+        },
+        "gpt.model": {
+          "type": "text",
+          "label": "Model"
+        }
+      }
+    },
+    "scheduler": {
+      "type": "panel",
+      "label": "Scheduler",
+      "items": {
+        "scheduler.enabled": {
+          "type": "checkbox",
+          "label": "Scheduler aktivieren"
+        },
+        "scheduler.time": {
+          "type": "text",
+          "label": "Uhrzeit (UTC)",
+          "placeholder": "08:00"
+        },
+        "scheduler.days": {
+          "type": "text",
+          "label": "Tage",
+          "placeholder": "mon,tue,wed,thu,fri,sat,sun"
+        },
+        "scheduler.timezone": {
+          "type": "text",
+          "label": "Zeitzone",
+          "placeholder": "UTC"
+        }
+      }
+    }
+  }
+}
