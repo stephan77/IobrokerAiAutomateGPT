@@ -1,10 +1,5 @@
 "use strict";
 
-/**
- * Hauptdatei des Adapters.
- * Hier werden nur Lifecycle-Handler verdrahtet und die Module zusammengesetzt.
- */
-
 const utils = require("@iobroker/adapter-core");
 const createConfig = require("./lib/config");
 const createState = require("./lib/state");
@@ -19,14 +14,8 @@ const createTelegram = require("./lib/telegram");
 const createGpt = require("./lib/gpt");
 const createScheduler = require("./lib/scheduler");
 
-/**
- * Adapter-Factory.
- */
 function startAdapter(options) {
-  const adapter = new utils.Adapter({
-    ...options,
-    name: "ai-autopilot",
-  });
+  const adapter = new utils.Adapter({ ...options, name: "ai-autopilot" });
 
   const config = createConfig(adapter);
   const state = createState(adapter);
@@ -43,94 +32,133 @@ function startAdapter(options) {
 
   let analysisRunning = false;
 
-  const normalizeObjectId = (value) => {
-    if (typeof value === "string") {
-      return value.trim();
+  const isDebug = () => adapter.config?.debug === true;
+
+  const debugLog = (msg, obj) => {
+    if (!isDebug()) return;
+    if (obj !== undefined) {
+      adapter.log.info(`[DEBUG] ${msg}: ${JSON.stringify(obj, null, 2)}`);
+    } else {
+      adapter.log.info(`[DEBUG] ${msg}`);
     }
-    if (value && typeof value === "object") {
-      return String(value.id || value._id || value.value || "").trim();
-    }
-    return "";
   };
 
-  /**
-   * Führt die Analyse sicher und mit Sperre aus.
-   */
   async function runAnalysisWithLock(trigger) {
     if (analysisRunning) {
-      adapter.log.info(`Analyse bereits aktiv, Trigger '${trigger}' wird ignoriert.`);
+      adapter.log.info(`Analyse bereits aktiv, Trigger '${trigger}' ignoriert.`);
       return;
     }
     analysisRunning = true;
-    adapter.log.info(`Starte Analyse (Trigger: ${trigger}).`);
+    adapter.log.info(`Starte Analyse (Trigger: ${trigger})`);
+
     try {
       await runAnalysis();
       await state.setMeta("lastRun", new Date().toISOString());
-    } catch (error) {
-      adapter.log.error(`Analyse fehlgeschlagen: ${error.message}`);
-      await state.setInfo("lastError", String(error.message || error));
+    } catch (err) {
+      adapter.log.error(`Analyse fehlgeschlagen: ${err.message}`);
+      await state.setInfo("lastError", String(err.message || err));
     } finally {
       analysisRunning = false;
     }
   }
 
-  /**
-   * Gesamter Analyse-Workflow gemäß Spezifikation.
-   */
   async function runAnalysis() {
     const normalizedConfig = config.normalize();
+    debugLog("Normalisierte Konfiguration", normalizedConfig);
 
     if (!normalizedConfig.dataPoints.length) {
-      adapter.log.info("Keine Datenpunkte konfiguriert. Analyse läuft im Leerlauf.");
+      adapter.log.info("Keine Datenpunkte konfiguriert. Analyse im Leerlauf.");
       await report.persistEmpty();
       return;
     }
 
+    debugLog("Datenpunkte", normalizedConfig.dataPoints);
+
     const live = await liveContext.collect(normalizedConfig);
+    debugLog("Live-Daten", live);
+
     const historyData = await history.collect(normalizedConfig, live);
+    debugLog("History-Daten", historyData);
+
     const computedStats = stats.compute(normalizedConfig, live, historyData);
-    const deviations = rules.detectDeviations(normalizedConfig, live, historyData, computedStats);
-    const actionList = actions.build(normalizedConfig, computedStats, deviations);
-    const enrichedActions = await gpt.enrichActions(normalizedConfig, actionList, computedStats);
-    const finalReport = report.build(normalizedConfig, live, historyData, computedStats, enrichedActions);
+    debugLog("Statistiken", computedStats);
+
+    const deviations = rules.detectDeviations(
+      normalizedConfig,
+      live,
+      historyData,
+      computedStats
+    );
+    debugLog("Abweichungen", deviations);
+
+    let actionList = actions.build(normalizedConfig, computedStats, deviations);
+    debugLog("Aktionen (vor GPT)", actionList);
+
+    // 🔥 DEBUG-FALLBACK → GPT IMMER AUFRUFEN
+    if (!actionList.length && isDebug()) {
+      actionList.push({
+        type: "analysis",
+        severity: "info",
+        message: "Debug-Analyse ohne erkannte Abweichungen",
+      });
+      debugLog("Fallback-Aktion erzeugt");
+    }
+
+    const enrichedActions = await gpt.enrichActions(
+      normalizedConfig,
+      actionList,
+      computedStats
+    );
+    debugLog("GPT-Aktionen", enrichedActions);
+
+    for (const action of enrichedActions) {
+      if (!action.description) continue;
+
+      // nur relevante Dinge schicken
+      if (action.priority !== "high") continue;
+
+      telegram.sendMessage(
+        `⚠️ ${action.category.toUpperCase()}\n` +
+        `${action.title}\n\n` +
+        action.description
+    );
+}
+
+    const finalReport = report.build(
+      normalizedConfig,
+      live,
+      historyData,
+      computedStats,
+      enrichedActions
+    );
+    debugLog("Finaler Report", finalReport);
 
     await report.persist(finalReport);
+    adapter.log.info("Analyse abgeschlossen");
   }
 
   adapter.on("ready", async () => {
     try {
-      const sanitized = config.sanitizeConfig();
-      if (sanitized.changed) {
-        adapter.log.info("Bereinige ungültige oder doppelte Datenpunkte in der Konfiguration.");
-        await adapter.extendForeignObjectAsync(adapter.namespace, {
-          native: {
-            dataPoints: sanitized.dataPoints,
-          },
-        });
-        adapter.config.dataPoints = sanitized.dataPoints;
-      }
-
       await state.ensureStates();
       await state.setInfo("connection", true);
       await state.setInfo("lastError", "");
 
       const normalizedConfig = config.normalize();
       await telegram.setup(normalizedConfig);
-      await scheduler.start(normalizedConfig, () => runAnalysisWithLock("scheduler"));
+      await scheduler.start(normalizedConfig, () =>
+        runAnalysisWithLock("scheduler")
+      );
 
       adapter.subscribeStates("control.run");
-      adapter.log.info("Adapter ist bereit.");
-    } catch (error) {
-      adapter.log.error(`onReady Fehler: ${error.message}`);
+      adapter.log.info("Adapter ist bereit");
+    } catch (err) {
+      adapter.log.error(`onReady Fehler: ${err.message}`);
       await state.setInfo("connection", false);
     }
   });
 
   adapter.on("stateChange", async (id, stateObj) => {
-    if (!stateObj || stateObj.ack) {
-      return;
-    }
-
+    if (!stateObj || stateObj.ack) return;
     if (id.endsWith("control.run") && stateObj.val === true) {
       await adapter.setStateAsync("control.run", false, true);
       await runAnalysisWithLock("control.run");
@@ -138,87 +166,23 @@ function startAdapter(options) {
   });
 
   adapter.on("message", async (msg) => {
-    if (!msg || !msg.command) {
-      return;
-    }
+    if (!msg?.command) return;
 
     if (msg.command === "runDiscovery") {
-      adapter.log.info("Starte Discovery auf Anforderung der Admin-Oberfläche.");
-      try {
-        const result = await discovery.runDiscovery();
-        await adapter.extendForeignObjectAsync(adapter.namespace, {
-          native: {
-            discoveryCandidates: result,
-          },
-        });
-        adapter.sendTo(msg.from, msg.command, { ok: true, count: result.length }, msg.callback);
-      } catch (error) {
-        adapter.log.warn(`Discovery fehlgeschlagen: ${error.message}`);
-        adapter.sendTo(msg.from, msg.command, { ok: false, error: error.message }, msg.callback);
-      }
-      return;
-    }
-
-    if (msg.command === "telegramAction") {
-      await telegram.handleAction(msg);
-    }
-
-    if (msg.command === "addDataPoint") {
-      try {
-        const payload = msg.message || {};
-        const objectId = normalizeObjectId(payload.objectId);
-        if (!objectId) {
-          adapter.sendTo(msg.from, msg.command, { ok: false, error: "Object ID fehlt." }, msg.callback);
-          return;
-        }
-
-        const existing = Array.isArray(adapter.config.dataPoints) ? adapter.config.dataPoints : [];
-        if (existing.some((entry) => normalizeObjectId(entry?.objectId) === objectId)) {
-          adapter.sendTo(
-            msg.from,
-            msg.command,
-            { ok: false, error: "Object ID ist bereits vorhanden." },
-            msg.callback
-          );
-          return;
-        }
-
-        const normalizeEnabled = (value) =>
-          value === true || value === "true" || value === 1 || value === "1";
-
-        const dataPoint = {
-          objectId,
-          role: payload.role || "other",
-          description: payload.description || "",
-          unit: payload.unit || "",
-          enabled: normalizeEnabled(payload.enabled),
-        };
-
-        const updated = [...existing, dataPoint];
-        await adapter.extendForeignObjectAsync(adapter.namespace, {
-          native: {
-            dataPoints: updated,
-          },
-        });
-        adapter.config.dataPoints = updated;
-        adapter.sendTo(msg.from, msg.command, { ok: true, count: updated.length }, msg.callback);
-      } catch (error) {
-        adapter.log.warn(`Datenpunkt hinzufügen fehlgeschlagen: ${error.message}`);
-        adapter.sendTo(msg.from, msg.command, { ok: false, error: error.message }, msg.callback);
-      }
+      adapter.log.info("Discovery gestartet");
+      const result = await discovery.runDiscovery();
+      await adapter.extendForeignObjectAsync(adapter.namespace, {
+        native: { discoveryCandidates: result },
+      });
+      adapter.sendTo(msg.from, msg.command, { ok: true }, msg.callback);
     }
   });
 
-  adapter.on("unload", async (callback) => {
-    try {
-      await scheduler.stop();
-      await telegram.stop();
-      await state.setInfo("connection", false);
-      callback();
-    } catch (error) {
-      adapter.log.error(`onUnload Fehler: ${error.message}`);
-      callback();
-    }
+  adapter.on("unload", async (cb) => {
+    await scheduler.stop();
+    await telegram.stop();
+    await state.setInfo("connection", false);
+    cb();
   });
 
   return adapter;
